@@ -1,0 +1,54 @@
+# Production compose: pull GHCR image (or build locally).
+# From repo root:
+#   cp .env.example .env   # fill WECHAT_* etc. — do not commit
+#   docker compose -f deploy/docker-compose.prod.yml pull
+#   docker compose -f deploy/docker-compose.prod.yml up -d
+#
+# GHCR package may need to be Public for anonymous pull; otherwise:
+#   echo $CR_PAT | docker login ghcr.io -u 1019666077-bit --password-stdin
+
+services:
+  api:
+    image: ghcr.io/1019666077-bit/hermes-obsidian:latest
+    # To build locally instead of pulling (context = repo root):
+    # build:
+    #   context: ..
+    #   dockerfile: server/Dockerfile
+    env_file:
+      - ../.env
+    environment:
+      ORGANIZE_ENGINE: ${ORGANIZE_ENGINE:-script}
+      HERMES_TIMEOUT_SEC: ${HERMES_TIMEOUT_SEC:-240}
+      FREE_QUOTA_LIMIT: ${FREE_QUOTA_LIMIT:-5}
+      WECHAT_APPID: ${WECHAT_APPID:-}
+      WECHAT_SECRET: ${WECHAT_SECRET:-}
+    volumes:
+      - api-jobs:/app/server/jobs
+    # Bound only on the compose network; expose via Caddy (or host publish if debugging).
+    expose:
+      - "8787"
+    # Optional debug: uncomment to reach API directly on the VPS
+    # ports:
+    #   - "8787:8787"
+    restart: unless-stopped
+
+  # Optional HTTPS reverse proxy (uncomment when DOMAIN is set and ports 80/443 are open).
+  # caddy:
+  #   image: caddy:2
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   environment:
+  #     DOMAIN: ${DOMAIN:?set DOMAIN e.g. api.example.com}
+  #   volumes:
+  #     - ./Caddyfile.example:/etc/caddy/Caddyfile:ro
+  #     - caddy-data:/data
+  #     - caddy-config:/config
+  #   depends_on:
+  #     - api
+  #   restart: unless-stopped
+
+volumes:
+  api-jobs:
+  # caddy-data:
+  # caddy-config:

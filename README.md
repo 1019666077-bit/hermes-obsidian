@@ -4,6 +4,8 @@
 
 **Phase 5**：Docker 部署包装 + 微信登录桩（无 `WECHAT_*` 时为本地 DEV 模式）+ 配额可按 openid。详见 `PHASE5.md`。
 
+**Phase 6**：GHCR 自动构建推送 + VPS / Caddy HTTPS 部署指引。详见 [`PHASE6.md`](PHASE6.md)。
+
 ## 目录
 
 - `miniprogram/` — 微信小程序（开发者工具导入）
@@ -12,7 +14,9 @@
 - `.env.example` — 环境变量模板（勿提交真实密钥）
 - `skills/obsidian-vault-organize/` — Hermes 技能
 - `fixtures/messy-input/` — 样例乱笔记
-- `PHASE1.md` … `PHASE5.md` — 阶段说明
+- `deploy/` — 生产 Compose / Caddy 示例
+- `.github/workflows/docker-publish.yml` — 推 main 时发布 GHCR 镜像
+- `PHASE1.md` … `PHASE6.md` — 阶段说明
 
 ## 快速开始
 

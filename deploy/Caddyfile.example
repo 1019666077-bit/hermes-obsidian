@@ -1,0 +1,9 @@
+# Example Caddy reverse proxy for Hermes×Obsidian API (HTTPS via Let's Encrypt).
+# Usage:
+#   export DOMAIN=api.example.com
+#   caddy run --config deploy/Caddyfile.example --adapter caddyfile
+# Or with docker compose (see docker-compose.prod.yml commented caddy service).
+
+{$DOMAIN} {
+	reverse_proxy api:8787
+}
