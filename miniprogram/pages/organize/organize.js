@@ -1,4 +1,4 @@
-const { baseUrl } = require('../../utils/config.js')
+const { baseUrl, clientHeaders, getClientId } = require('../../utils/config.js')
 
 Page({
   data: {
@@ -7,7 +7,34 @@ Page({
     busy: false,
     status: '',
     jobId: '',
-    downloadPath: ''
+    downloadPath: '',
+    engine: '',
+    quotaText: '',
+    remaining: null
+  },
+
+  onShow() {
+    this.refreshQuota()
+  },
+
+  refreshQuota() {
+    wx.request({
+      url: `${baseUrl}/api/quota`,
+      method: 'GET',
+      header: clientHeaders(),
+      success: (res) => {
+        if (res.statusCode === 200 && res.data) {
+          const d = res.data
+          this.setData({
+            remaining: d.remaining,
+            quotaText: `今日剩余 ${d.remaining}/${d.limit} 次（客户端 ${getClientId().slice(0, 10)}…）`
+          })
+        }
+      },
+      fail: () => {
+        // ignore offline
+      }
+    })
   },
 
   chooseFile() {
@@ -22,7 +49,8 @@ Page({
           fileName: f.name,
           status: '',
           jobId: '',
-          downloadPath: ''
+          downloadPath: '',
+          engine: ''
         })
       },
       fail: (err) => {
@@ -38,12 +66,13 @@ Page({
       wx.showToast({ title: '请先选择文件', icon: 'none' })
       return
     }
-    this.setData({ busy: true, status: '上传并整理中…', downloadPath: '' })
+    this.setData({ busy: true, status: '上传并整理中…', downloadPath: '', engine: '' })
 
     wx.uploadFile({
       url: `${baseUrl}/api/organize`,
       filePath,
       name: 'files',
+      header: clientHeaders(),
       success: (res) => {
         let body
         try {
@@ -52,16 +81,37 @@ Page({
           this.setData({ busy: false, status: '响应解析失败' })
           return
         }
+
+        if (res.statusCode === 429) {
+          const msg = (body && body.detail) || '今日免费次数已用完'
+          this.setData({ busy: false, status: msg })
+          wx.showToast({ title: '配额已用尽', icon: 'none' })
+          this.refreshQuota()
+          return
+        }
+
         if (res.statusCode >= 400 || !body.job_id) {
           this.setData({
             busy: false,
-            status: `失败：${body.detail || res.data}`
+            status: `失败：${(body && body.detail) || res.data}`
           })
+          this.refreshQuota()
           return
+        }
+
+        const engine = body.engine || 'unknown'
+        let quotaHint = ''
+        if (body.quota) {
+          quotaHint = `，剩余 ${body.quota.remaining}/${body.quota.limit}`
+          this.setData({
+            remaining: body.quota.remaining,
+            quotaText: `今日剩余 ${body.quota.remaining}/${body.quota.limit} 次`
+          })
         }
         this.setData({
           jobId: body.job_id,
-          status: `整理完成（引擎：${body.engine || 'unknown'}），正在下载…`
+          engine,
+          status: `整理完成（引擎：${engine}${quotaHint}），正在下载…`
         })
         this.downloadVault(body.job_id)
       },
@@ -79,16 +129,19 @@ Page({
     const url = `${baseUrl}/api/download/${jobId}`
     wx.downloadFile({
       url,
+      header: clientHeaders(),
       success: (res) => {
         if (res.statusCode !== 200) {
           this.setData({ busy: false, status: `下载失败 HTTP ${res.statusCode}` })
           return
         }
+        const eng = this.data.engine ? `（引擎：${this.data.engine}）` : ''
         this.setData({
           busy: false,
           downloadPath: res.tempFilePath,
-          status: '整理完成，可打开或保存 vault zip'
+          status: `整理完成${eng}，可打开或保存 vault zip`
         })
+        this.refreshQuota()
       },
       fail: (err) => {
         this.setData({ busy: false, status: '下载失败' })
@@ -113,7 +166,6 @@ Page({
   saveVault() {
     const path = this.data.downloadPath
     if (!path) return
-    // 基础库支持 saveFile；部分端可用 shareFileMessage
     wx.saveFile({
       tempFilePath: path,
       success: (res) => {

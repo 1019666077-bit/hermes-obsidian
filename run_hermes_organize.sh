@@ -1,13 +1,26 @@
 #!/usr/bin/env bash
-# Phase 2: best-effort non-interactive Hermes vault organize.
+# Phase 2/4: best-effort non-interactive Hermes vault organize.
 # Requires a real API key in ~/.hermes/.env (OPENROUTER_API_KEY / DEEPSEEK_API_KEY / OPENAI_API_KEY / …).
+#
+# Job-specific paths (Phase 4 server):
+#   INPUT_DIR              — source notes (default: fixtures/messy-input)
+#   OUTPUT_DIR             — alias for output vault
+#   OBSIDIAN_VAULT_PATH    — output vault (wins over OUTPUT_DIR if both set)
 set -euo pipefail
 
 ROOT="/workspace/hermes-obsidian"
 HERMES_DIR="${ROOT}/hermes-agent"
 VENV_BIN="${HERMES_DIR}/.venv/bin"
-INPUT="${ROOT}/fixtures/messy-input"
-export OBSIDIAN_VAULT_PATH="${OBSIDIAN_VAULT_PATH:-${ROOT}/hermes-output-vault}"
+INPUT="${INPUT_DIR:-${ROOT}/fixtures/messy-input}"
+# Prefer OBSIDIAN_VAULT_PATH, then OUTPUT_DIR, then default hermes-output-vault
+if [[ -n "${OBSIDIAN_VAULT_PATH:-}" ]]; then
+  :
+elif [[ -n "${OUTPUT_DIR:-}" ]]; then
+  OBSIDIAN_VAULT_PATH="${OUTPUT_DIR}"
+else
+  OBSIDIAN_VAULT_PATH="${ROOT}/hermes-output-vault"
+fi
+export OBSIDIAN_VAULT_PATH
 
 if [[ ! -x "${VENV_BIN}/hermes" ]]; then
   echo "ERROR: hermes CLI not found at ${VENV_BIN}/hermes" >&2
@@ -42,7 +55,7 @@ if [[ "${has_key}" -eq 0 ]]; then
   echo "  # or DEEPSEEK_API_KEY=sk-..."
   echo ""
   echo "Fallback (no LLM):"
-  echo "  python3 ${ROOT}/organize_vault.py --input ${INPUT} --output ${ROOT}/output-vault"
+  echo "  python3 ${ROOT}/organize_vault.py --input ${INPUT} --output ${OBSIDIAN_VAULT_PATH}"
   exit 2
 fi
 
@@ -58,6 +71,7 @@ PROMPT=$(cat <<PROMPT_EOF
 PROMPT_EOF
 )
 
+echo "INPUT_DIR=${INPUT}"
 echo "OBSIDIAN_VAULT_PATH=${OBSIDIAN_VAULT_PATH}"
 echo "Running: hermes chat -Q --oneshot --yolo -s obsidian-vault-organize ..."
 echo "(Batch mode: chat -q/--query-file + --oneshot + -Q; see hermes chat --help)"
@@ -68,7 +82,11 @@ EXTRA=()
 if [[ -n "${HERMES_PROVIDER:-}" ]]; then EXTRA+=(--provider "${HERMES_PROVIDER}"); fi
 if [[ -n "${HERMES_MODEL:-}" ]]; then EXTRA+=(-m "${HERMES_MODEL}"); fi
 
+# Soft time budget for long agent runs (server also wraps with its own timeout)
+export HERMES_RUN_BUDGET="${HERMES_RUN_BUDGET:-240}"
+
 exec "${HERMES}" chat -Q --oneshot --yolo \
   -s obsidian-vault-organize \
+  --run-budget "${HERMES_RUN_BUDGET}" \
   "${EXTRA[@]}" \
   -q "${PROMPT}"

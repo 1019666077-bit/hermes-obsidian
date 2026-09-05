@@ -36,8 +36,10 @@ cd /workspace/hermes-obsidian/server
 
 ## 4. 下一步
 
-- 用户登录（微信 `code` 换 session）与用量配额
-- 用 Hermes（`run_hermes_organize.sh`）替换离线 `organize_vault.py`（需模型 API Key）
+> **Phase 4 已完成**：Hermes 优先 + 免费配额桩，详见 [`PHASE4.md`](./PHASE4.md)。
+
+- ~~用 Hermes 替换离线脚本 / 用量配额~~ → 见 Phase 4
+- 用户登录（微信 `code` 换 session），配额绑定 openid
 - 任务持久化（Redis/DB）、进度推送、更大文件与异步队列
 - 正式 AppID、隐私协议与合规说明
 

@@ -2,6 +2,7 @@
   <view class="card">
     <view class="section-title">选择笔记</view>
     <view class="desc">推荐上传包含笔记的 .zip；也可从聊天记录选择文件。</view>
+    <view wx:if="{{quotaText}}" class="quota">{{quotaText}}</view>
     <button class="btn-primary" bindtap="chooseFile" disabled="{{busy}}">选择 zip / 文件</button>
     <view wx:if="{{fileName}}" class="file-name">已选：{{fileName}}</view>
   </view>
@@ -15,6 +16,7 @@
   <view class="card" wx:if="{{status}}">
     <view class="section-title">状态</view>
     <view class="status">{{status}}</view>
+    <view wx:if="{{engine}}" class="engine">引擎：{{engine}}</view>
     <view wx:if="{{jobId}}" class="job">job_id: {{jobId}}</view>
   </view>
 

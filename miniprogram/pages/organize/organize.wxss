@@ -36,3 +36,15 @@
   text-align: center;
   border: none;
 }
+
+.quota {
+  color: #059669;
+  font-size: 24rpx;
+  margin-bottom: 20rpx;
+}
+
+.engine {
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: #4f46e5;
+}
