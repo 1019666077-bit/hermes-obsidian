@@ -190,9 +190,6 @@ function ensureLogin() {
 module.exports = {
   DEFAULT_BASE_URL,
   getBaseUrl,
-  get baseUrl() {
-    return getBaseUrl()
-  },
   getClientId,
   getSessionToken,
   getOpenId,
