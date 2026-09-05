@@ -29,6 +29,7 @@ cd server && ./start.sh
 
 - 设置 `WECHAT_APPID` + `WECHAT_SECRET` → 调用微信 `jscode2session`
 - 否则 **DEV 模式**：任意 `code` 换假 `openid`（`dev_openid_*`）与 token（7 天，存 `jobs/sessions.json`）
+- 真登录联调清单见仓库根目录 [`PHASE7.md`](../PHASE7.md)
 
 ### 整理引擎
 

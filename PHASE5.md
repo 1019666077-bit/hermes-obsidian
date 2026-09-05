@@ -80,6 +80,8 @@ server {
 
 ### 如何填写 WECHAT_*（真登录）
 
+完整联调清单（AppID/Secret、DEV vs live、`wx.login` 流程、合法域名、常见错误）见 **[`PHASE7.md`](PHASE7.md)**。
+
 1. 登录微信公众平台 → 你的小程序
 2. **开发 → 开发管理 → 开发设置**，复制 **AppID(小程序ID)** → 写入 `.env` 的 `WECHAT_APPID=`
 3. 同页生成/重置 **AppSecret** → 写入 `WECHAT_SECRET=`（只放服务器环境变量，**不要**写进小程序代码或 git）

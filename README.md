@@ -6,6 +6,8 @@
 
 **Phase 6**：GHCR 自动构建推送 + VPS / Caddy HTTPS 部署指引。详见 [`PHASE6.md`](PHASE6.md)。
 
+**Phase 7**：微信真登录联调（AppID / AppSecret、DEV vs live、`wx.login` → Bearer、合法域名、常见错误）。详见 [`PHASE7.md`](PHASE7.md)。
+
 ## 目录
 
 - `miniprogram/` — 微信小程序（开发者工具导入）
@@ -16,7 +18,7 @@
 - `fixtures/messy-input/` — 样例乱笔记
 - `deploy/` — 生产 Compose / Caddy 示例
 - `.github/workflows/docker-publish.yml` — 推 main 时发布 GHCR 镜像
-- `PHASE1.md` … `PHASE6.md` — 阶段说明
+- `PHASE1.md` … `PHASE7.md` — 阶段说明
 
 ## 快速开始
 
@@ -37,7 +39,7 @@ curl -s -H 'X-Client-Id: demo' http://127.0.0.1:8787/api/quota
 python3 organize_vault.py --input fixtures/messy-input --output /tmp/demo-vault
 ```
 
-微信真机需 **HTTPS 反代**（Caddy/Nginx），并在公众平台配置 request/upload/download 合法域名。真登录：在 `.env` 填入公众平台的 AppID 与 AppSecret（不要提交 git）。
+微信真机需 **HTTPS 反代**（Caddy/Nginx），并在公众平台配置 request/upload/download 合法域名。真登录步骤见 [`PHASE7.md`](PHASE7.md)：在 `.env` 填入公众平台的 AppID 与 AppSecret（不要提交 git）。
 
 Hermes Agent 请自行 clone：https://github.com/NousResearch/hermes-agent  
 安装与 DeepSeek 配置见 `PHASE2.md`（**不要把 API Key 提交进仓库**）。无本地 Hermes / Key 时 API 使用 `organize_vault.py`。
