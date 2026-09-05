@@ -171,11 +171,17 @@
     }
 
     input[type="file"] {
-      display: block;
-      width: 100%;
-      margin: 8px 0 14px;
-      font-size: 0.95rem;
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
     }
+
+    .file-btn { margin-bottom: 12px; }
 
     .file-list {
       margin: 0 0 14px;
@@ -273,6 +279,7 @@
     <section class="card">
       <h2 class="section-title">上传并整理</h2>
       <p class="desc">可多选 md / txt / csv / zip。字段名 <code>files</code>，对应 <code>POST /api/organize</code>。</p>
+      <label class="btn btn-secondary file-btn" for="file-input">选择笔记文件</label>
       <input id="file-input" type="file" multiple accept=".md,.txt,.csv,.zip,.markdown,text/plain,text/markdown,text/csv,application/zip">
       <ul class="file-list" id="file-list" hidden></ul>
       <div class="empty" id="file-empty">
@@ -365,15 +372,18 @@
 
     function renderFiles() {
       const files = selectedFiles();
+      const pickBtn = document.querySelector(".file-btn");
       els.fileList.innerHTML = "";
       if (!files.length) {
         els.fileList.hidden = true;
         els.fileEmpty.hidden = false;
         els.organizeBtn.disabled = true;
+        if (pickBtn) pickBtn.textContent = "选择笔记文件";
         return;
       }
       els.fileEmpty.hidden = true;
       els.fileList.hidden = false;
+      if (pickBtn) pickBtn.textContent = "重新选择（已选 " + files.length + " 个）";
       files.forEach((f) => {
         const li = document.createElement("li");
         const kb = Math.max(1, Math.round(f.size / 1024));
