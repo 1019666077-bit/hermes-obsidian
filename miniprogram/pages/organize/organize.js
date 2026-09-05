@@ -1,4 +1,10 @@
-const { baseUrl, clientHeaders, getClientId } = require('../../utils/config.js')
+const {
+  baseUrl,
+  clientHeaders,
+  getClientId,
+  getOpenId,
+  ensureLogin
+} = require('../../utils/config.js')
 
 Page({
   data: {
@@ -14,7 +20,7 @@ Page({
   },
 
   onShow() {
-    this.refreshQuota()
+    ensureLogin().then(() => this.refreshQuota())
   },
 
   refreshQuota() {
@@ -25,9 +31,12 @@ Page({
       success: (res) => {
         if (res.statusCode === 200 && res.data) {
           const d = res.data
+          const who = d.openid
+            ? `openid ${String(d.openid).slice(0, 12)}…`
+            : `客户端 ${getClientId().slice(0, 10)}…`
           this.setData({
             remaining: d.remaining,
-            quotaText: `今日剩余 ${d.remaining}/${d.limit} 次（客户端 ${getClientId().slice(0, 10)}…）`
+            quotaText: `今日剩余 ${d.remaining}/${d.limit} 次（${who}）`
           })
         }
       },
@@ -68,61 +77,65 @@ Page({
     }
     this.setData({ busy: true, status: '上传并整理中…', downloadPath: '', engine: '' })
 
-    wx.uploadFile({
-      url: `${baseUrl}/api/organize`,
-      filePath,
-      name: 'files',
-      header: clientHeaders(),
-      success: (res) => {
-        let body
-        try {
-          body = JSON.parse(res.data)
-        } catch (e) {
-          this.setData({ busy: false, status: '响应解析失败' })
-          return
-        }
+    const runUpload = () => {
+      wx.uploadFile({
+        url: `${baseUrl}/api/organize`,
+        filePath,
+        name: 'files',
+        header: clientHeaders(),
+        success: (res) => {
+          let body
+          try {
+            body = JSON.parse(res.data)
+          } catch (e) {
+            this.setData({ busy: false, status: '响应解析失败' })
+            return
+          }
 
-        if (res.statusCode === 429) {
-          const msg = (body && body.detail) || '今日免费次数已用完'
-          this.setData({ busy: false, status: msg })
-          wx.showToast({ title: '配额已用尽', icon: 'none' })
-          this.refreshQuota()
-          return
-        }
+          if (res.statusCode === 429) {
+            const msg = (body && body.detail) || '今日免费次数已用完'
+            this.setData({ busy: false, status: msg })
+            wx.showToast({ title: '配额已用尽', icon: 'none' })
+            this.refreshQuota()
+            return
+          }
 
-        if (res.statusCode >= 400 || !body.job_id) {
+          if (res.statusCode >= 400 || !body.job_id) {
+            this.setData({
+              busy: false,
+              status: `失败：${(body && body.detail) || res.data}`
+            })
+            this.refreshQuota()
+            return
+          }
+
+          const engine = body.engine || 'unknown'
+          let quotaHint = ''
+          if (body.quota) {
+            quotaHint = `，剩余 ${body.quota.remaining}/${body.quota.limit}`
+            this.setData({
+              remaining: body.quota.remaining,
+              quotaText: `今日剩余 ${body.quota.remaining}/${body.quota.limit} 次`
+            })
+          }
+          this.setData({
+            jobId: body.job_id,
+            engine,
+            status: `整理完成（引擎：${engine}${quotaHint}），正在下载…`
+          })
+          this.downloadVault(body.job_id)
+        },
+        fail: (err) => {
           this.setData({
             busy: false,
-            status: `失败：${(body && body.detail) || res.data}`
+            status: `请求失败：请确认本机 API 已启动（${baseUrl}）。真机需 HTTPS 合法域名。`
           })
-          this.refreshQuota()
-          return
+          console.error(err)
         }
+      })
+    }
 
-        const engine = body.engine || 'unknown'
-        let quotaHint = ''
-        if (body.quota) {
-          quotaHint = `，剩余 ${body.quota.remaining}/${body.quota.limit}`
-          this.setData({
-            remaining: body.quota.remaining,
-            quotaText: `今日剩余 ${body.quota.remaining}/${body.quota.limit} 次`
-          })
-        }
-        this.setData({
-          jobId: body.job_id,
-          engine,
-          status: `整理完成（引擎：${engine}${quotaHint}），正在下载…`
-        })
-        this.downloadVault(body.job_id)
-      },
-      fail: (err) => {
-        this.setData({
-          busy: false,
-          status: `请求失败：请确认本机 API 已启动（${baseUrl}）。真机需 HTTPS 合法域名。`
-        })
-        console.error(err)
-      }
-    })
+    ensureLogin().then(runUpload)
   },
 
   downloadVault(jobId) {

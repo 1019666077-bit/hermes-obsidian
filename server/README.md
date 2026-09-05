@@ -1,59 +1,60 @@
-# Hermes×Obsidian API（Phase 4）
+# Hermes×Obsidian API（Phase 5）
 
 将杂乱笔记上传整理为 Obsidian vault，并返回可下载的 zip。  
-优先调用 Hermes（需模型 API Key）；失败或缺 Key 时回退 `organize_vault.py`。含演示级每日免费配额。
+默认脚本引擎；可选 Hermes。含微信登录桩与每日免费配额（按 openid 或 client id）。
 
 ## 启动
 
 ```bash
-cd /workspace/hermes-obsidian/server
-./start.sh
+cd server && ./start.sh
 # 或：python3 -m uvicorn main:app --host 0.0.0.0 --port 8787
+# 或仓库根目录：docker compose up --build
 ```
 
-默认监听 `http://127.0.0.1:8787`。依赖：`fastapi`、`uvicorn`、`python-multipart`（见 `requirements.txt`）。
+默认监听 `http://127.0.0.1:8787`。依赖见 `requirements.txt`。
 
 ## 接口
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/health` | 健康检查（`phase: 4`） |
-| GET | `/api/quota` | 查询当日配额；请求头可选 `X-Client-Id` |
-| POST | `/api/organize` | multipart 上传 → 返回 `job_id`、`engine`、`quota` |
-| GET | `/api/download/{job_id}` | 下载整理后的 vault zip |
-| GET | `/api/jobs/{job_id}` | 查询任务状态 |
+| GET | `/health` | 健康检查（`phase: 5`，`wechat_login`） |
+| POST | `/api/login` | `{code}` → `session_token` / `openid`（无 WECHAT_* 为 DEV 模式） |
+| GET | `/api/me` | 当前身份 + 配额 |
+| GET | `/api/quota` | 配额；优先 Bearer→openid，否则 `X-Client-Id` |
+| POST | `/api/organize` | multipart 上传 → `job_id`、`engine`、`quota` |
+| GET | `/api/download/{job_id}` | 下载 vault zip |
+| GET | `/api/jobs/{job_id}` | 任务状态 |
+
+### 登录
+
+- 设置 `WECHAT_APPID` + `WECHAT_SECRET` → 调用微信 `jscode2session`
+- 否则 **DEV 模式**：任意 `code` 换假 `openid`（`dev_openid_*`）与 token（7 天，存 `jobs/sessions.json`）
 
 ### 整理引擎
 
-1. 有 API Key（`~/.hermes/.env` 或环境变量）且 `run_hermes_organize.sh` 可执行 → Hermes（超时 ~240s）
-2. 否则 / 失败 → `organize_vault.py`（`engine: "script"`）
+环境变量 `ORGANIZE_ENGINE=auto|hermes|script`（容器默认 `script`）。
 
-`run_hermes_organize.sh` 接受 `INPUT_DIR` / `OUTPUT_DIR` / `OBSIDIAN_VAULT_PATH`。
+### 配额
 
-### 配额桩
-
-- Header `X-Client-Id`（缺省 `anonymous`）
-- 每自然日 5 次（Asia/Shanghai）；超限 HTTP 429
-- 状态文件：`server/jobs/quota.json`
+- 有 `Authorization: Bearer <token>` → 按 openid
+- 否则 `X-Client-Id`（缺省 `anonymous`）
+- 每日 `FREE_QUOTA_LIMIT`（默认 5，Asia/Shanghai）；超限 429
 
 ## curl 示例
 
 ```bash
 curl -s http://127.0.0.1:8787/health
-curl -s -H 'X-Client-Id: demo' http://127.0.0.1:8787/api/quota
+TOKEN=$(curl -s -X POST http://127.0.0.1:8787/api/login -H 'Content-Type: application/json' -d '{"code":"dev1"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['session_token'])")
+curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8787/api/me
+curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8787/api/quota
 
-cd /workspace/hermes-obsidian
+cd /path/to/hermes-obsidian
 zip -r /tmp/messy.zip fixtures/messy-input
-RESP=$(curl -s -H 'X-Client-Id: demo' -F "files=@/tmp/messy.zip" http://127.0.0.1:8787/api/organize)
+RESP=$(curl -s -H "Authorization: Bearer $TOKEN" -H 'X-Client-Id: demo' -F "files=@/tmp/messy.zip" http://127.0.0.1:8787/api/organize)
 echo "$RESP"
-JOB=$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['job_id'])" "$RESP")
-curl -s -o /tmp/vault-out.zip "http://127.0.0.1:8787/api/download/$JOB"
-unzip -l /tmp/vault-out.zip | head
 ```
 
-## 说明
+## Docker 说明
 
-- CORS 已对本地开发开放。
-- **响应与日志不含 API Key**；请勿打印密钥。
-- 任务结果在 `server/jobs/`；进程内登记，重启后 `job_id` 失效。
-- 发布树不含 `hermes-agent` / `.env`；无本地 Hermes 时自动用脚本引擎。
+见仓库根目录 `PHASE5.md`、`Dockerfile`、`docker-compose.yml`。  
+**不要**把 `.env` / API Key / AppSecret 提交进 git。可选挂载 `~/.hermes` 以启用 Hermes（进阶）。

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start Hermes×Obsidian Phase-4 API on :8787
+# Start Hermes×Obsidian Phase-5 API on :8787
 set -euo pipefail
 cd "$(dirname "$0")"
 export PYTHONUNBUFFERED=1

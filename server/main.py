@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
-"""Hermes×Obsidian Phase-4 API: Hermes-first organize + free-tier quota stub."""
+"""Hermes×Obsidian Phase-5 API: Docker-ready + WeChat login stub + organize."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
 import uuid
 import zipfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -18,6 +23,7 @@ from zoneinfo import ZoneInfo
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel, Field
 
 ROOT = Path(__file__).resolve().parent.parent
 ORGANIZE_SCRIPT = ROOT / "organize_vault.py"
@@ -25,13 +31,20 @@ HERMES_SCRIPT = ROOT / "run_hermes_organize.sh"
 JOBS_DIR = Path(__file__).resolve().parent / "jobs"
 JOBS_DIR.mkdir(parents=True, exist_ok=True)
 QUOTA_FILE = JOBS_DIR / "quota.json"
+SESSIONS_FILE = JOBS_DIR / "sessions.json"
 HERMES_ENV_FILE = Path.home() / ".hermes" / ".env"
 
-# Free tier: 5 organizes per calendar day (Asia/Shanghai)
-QUOTA_LIMIT = 5
+# Free tier: configurable organizes per calendar day (Asia/Shanghai)
+QUOTA_LIMIT = int(os.environ.get("FREE_QUOTA_LIMIT", os.environ.get("QUOTA_DAILY_LIMIT", "5")))
 QUOTA_TZ = ZoneInfo("Asia/Shanghai")
 HERMES_TIMEOUT_SEC = int(os.environ.get("HERMES_TIMEOUT_SEC", "240"))  # 180–300s band
 SCRIPT_TIMEOUT_SEC = 120
+SESSION_DAYS = 7
+ORGANIZE_ENGINE = (os.environ.get("ORGANIZE_ENGINE") or "auto").strip().lower()
+
+WECHAT_APPID = (os.environ.get("WECHAT_APPID") or "").strip()
+WECHAT_SECRET = (os.environ.get("WECHAT_SECRET") or "").strip()
+WECHAT_LOGIN_READY = bool(WECHAT_APPID and WECHAT_SECRET)
 
 API_KEY_NAMES = (
     "OPENROUTER_API_KEY",
@@ -47,7 +60,7 @@ API_KEY_NAMES = (
 # In-memory job registry (demo-scale; restart clears)
 JOBS: dict[str, dict] = {}
 
-app = FastAPI(title="Hermes×Obsidian API", version="0.4.0")
+app = FastAPI(title="Hermes×Obsidian API", version="0.5.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -57,13 +70,19 @@ app.add_middleware(
 )
 
 
+class LoginBody(BaseModel):
+    code: str = Field(..., min_length=1, description="wx.login code or any string in dev mode")
+
+
 @app.get("/health")
 def health():
     return {
         "status": "ok",
         "service": "hermes-obsidian",
-        "phase": 4,
-        "version": "0.4.0",
+        "phase": 5,
+        "version": "0.5.0",
+        "wechat_login": "live" if WECHAT_LOGIN_READY else "dev",
+        "organize_engine": ORGANIZE_ENGINE,
     }
 
 
@@ -75,36 +94,133 @@ def _client_id_from_header(x_client_id: Optional[str]) -> str:
     raw = (x_client_id or "").strip()
     if not raw:
         return "anonymous"
-    # Keep storage keys safe / short
     cleaned = re.sub(r"[^a-zA-Z0-9_-]", "", raw)[:64]
     return cleaned or "anonymous"
 
 
-def _load_quota() -> dict:
-    if not QUOTA_FILE.is_file():
+def _load_json_file(path: Path) -> dict:
+    if not path.is_file():
         return {}
     try:
-        data = json.loads(QUOTA_FILE.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else {}
     except (OSError, json.JSONDecodeError):
         return {}
 
 
-def _save_quota(data: dict) -> None:
+def _save_json_file(path: Path, data: dict) -> None:
     JOBS_DIR.mkdir(parents=True, exist_ok=True)
-    tmp = QUOTA_FILE.with_suffix(".tmp")
+    tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(QUOTA_FILE)
+    tmp.replace(path)
 
 
-def _quota_snapshot(client_id: str) -> dict:
+def _load_quota() -> dict:
+    return _load_json_file(QUOTA_FILE)
+
+
+def _save_quota(data: dict) -> None:
+    _save_json_file(QUOTA_FILE, data)
+
+
+def _load_sessions() -> dict:
+    return _load_json_file(SESSIONS_FILE)
+
+
+def _save_sessions(data: dict) -> None:
+    _save_json_file(SESSIONS_FILE, data)
+
+
+def _purge_expired_sessions(store: dict) -> dict:
+    now = datetime.now(timezone.utc)
+    cleaned: dict = {}
+    for token, meta in store.items():
+        if not isinstance(meta, dict):
+            continue
+        exp = meta.get("expires_at")
+        if not exp:
+            continue
+        try:
+            expires = datetime.fromisoformat(str(exp).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if expires > now:
+            cleaned[token] = meta
+    return cleaned
+
+
+def _issue_session(openid: str, mode: str) -> dict:
+    token = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc)
+    expires = now + timedelta(days=SESSION_DAYS)
+    store = _purge_expired_sessions(_load_sessions())
+    store[token] = {
+        "openid": openid,
+        "mode": mode,
+        "created_at": now.isoformat(),
+        "expires_at": expires.isoformat(),
+    }
+    _save_sessions(store)
+    return {
+        "session_token": token,
+        "openid": openid,
+        "expires_at": expires.isoformat(),
+        "mode": mode,
+        "expires_in_sec": SESSION_DAYS * 24 * 3600,
+    }
+
+
+def _openid_from_bearer(authorization: Optional[str]) -> Optional[str]:
+    if not authorization:
+        return None
+    raw = authorization.strip()
+    if not raw.lower().startswith("bearer "):
+        return None
+    token = raw[7:].strip()
+    if not token:
+        return None
+    store = _purge_expired_sessions(_load_sessions())
+    # Persist purge occasionally
+    _save_sessions(store)
+    meta = store.get(token)
+    if not isinstance(meta, dict):
+        return None
+    openid = str(meta.get("openid") or "").strip()
+    return openid or None
+
+
+def _resolve_quota_key(
+    authorization: Optional[str] = None,
+    x_client_id: Optional[str] = None,
+) -> dict:
+    """Prefer openid from Bearer session; else X-Client-Id."""
+    openid = _openid_from_bearer(authorization)
+    if openid:
+        return {
+            "quota_key": f"oid:{openid}",
+            "openid": openid,
+            "client_id": _client_id_from_header(x_client_id),
+            "auth": "bearer",
+        }
+    client_id = _client_id_from_header(x_client_id)
+    return {
+        "quota_key": client_id,
+        "openid": None,
+        "client_id": client_id,
+        "auth": "client_id",
+    }
+
+
+def _quota_snapshot(quota_key: str) -> dict:
     today = _today_key()
     store = _load_quota()
     day = store.get(today) if isinstance(store.get(today), dict) else {}
-    used = int(day.get(client_id, 0) or 0)
+    used = int(day.get(quota_key, 0) or 0)
     remaining = max(0, QUOTA_LIMIT - used)
     return {
-        "client_id": client_id,
+        "quota_key": quota_key,
         "used": used,
         "limit": QUOTA_LIMIT,
         "remaining": remaining,
@@ -113,31 +229,145 @@ def _quota_snapshot(client_id: str) -> dict:
     }
 
 
-def _check_and_consume_quota(client_id: str) -> dict:
+def _check_and_consume_quota(quota_key: str) -> dict:
     """Raise 429 if over free limit; otherwise increment and return snapshot."""
     today = _today_key()
     store = _load_quota()
-    # Drop old days to keep file small
     store = {k: v for k, v in store.items() if k == today and isinstance(v, dict)}
     day = store.setdefault(today, {})
-    used = int(day.get(client_id, 0) or 0)
+    used = int(day.get(quota_key, 0) or 0)
     if used >= QUOTA_LIMIT:
         raise HTTPException(
             status_code=429,
             detail=f"今日免费整理次数已用完（上限 {QUOTA_LIMIT} 次/天，时区 Asia/Shanghai）。请明天再试。",
         )
-    day[client_id] = used + 1
+    day[quota_key] = used + 1
     store[today] = day
     _save_quota(store)
-    return _quota_snapshot(client_id)
+    return _quota_snapshot(quota_key)
+
+
+def _wechat_jscode2session(code: str) -> dict:
+    params = urllib.parse.urlencode(
+        {
+            "appid": WECHAT_APPID,
+            "secret": WECHAT_SECRET,
+            "js_code": code,
+            "grant_type": "authorization_code",
+        }
+    )
+    url = f"https://api.weixin.qq.com/sns/jscode2session?{params}"
+    req = urllib.request.Request(url, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = resp.read().decode("utf-8", errors="replace")
+    except urllib.error.URLError as e:
+        raise HTTPException(status_code=502, detail=f"WeChat jscode2session network error: {type(e).__name__}") from e
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=502, detail="WeChat jscode2session invalid JSON") from e
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=502, detail="WeChat jscode2session bad response")
+    errcode = data.get("errcode")
+    if errcode not in (None, 0):
+        # Never echo secret; errmsg from WeChat is ok
+        raise HTTPException(
+            status_code=401,
+            detail=f"WeChat login failed: errcode={errcode} errmsg={data.get('errmsg', '')}",
+        )
+    openid = str(data.get("openid") or "").strip()
+    if not openid:
+        raise HTTPException(status_code=401, detail="WeChat login returned no openid")
+    return {"openid": openid, "session_key_present": bool(data.get("session_key")), "unionid": data.get("unionid")}
+
+
+def _dev_openid_from_code(code: str) -> str:
+    digest = hashlib.sha256(code.encode("utf-8")).hexdigest()[:16]
+    return f"dev_openid_{digest}"
+
+
+@app.post("/api/login")
+def login(body: LoginBody):
+    """
+    Exchange wx.login `code` for a session_token.
+
+    - If WECHAT_APPID + WECHAT_SECRET are set: call WeChat jscode2session (live).
+    - Else **dev mode**: accept any code and return a fake openid + token for local testing.
+      Documented clearly in response `mode: "dev"`.
+    """
+    code = (body.code or "").strip()
+    if not code:
+        raise HTTPException(status_code=400, detail="code is required")
+
+    if WECHAT_LOGIN_READY:
+        wx = _wechat_jscode2session(code)
+        issued = _issue_session(wx["openid"], mode="live")
+        return {
+            "ok": True,
+            "mode": "live",
+            "openid": issued["openid"],
+            "session_token": issued["session_token"],
+            "token": issued["session_token"],
+            "expires_at": issued["expires_at"],
+            "expires_in_sec": issued["expires_in_sec"],
+            "hint": "Send Authorization: Bearer <session_token> on API calls; quota keys by openid.",
+        }
+
+    # Dev mode: no WeChat credentials configured
+    openid = _dev_openid_from_code(code)
+    issued = _issue_session(openid, mode="dev")
+    return {
+        "ok": True,
+        "mode": "dev",
+        "openid": issued["openid"],
+        "session_token": issued["session_token"],
+        "token": issued["session_token"],
+        "expires_at": issued["expires_at"],
+        "expires_in_sec": issued["expires_in_sec"],
+        "hint": (
+            "DEV MODE: WECHAT_APPID/WECHAT_SECRET unset. "
+            "Any code is accepted; openid is fake (dev_openid_*). "
+            "Set WECHAT_* env vars for real jscode2session. "
+            "Send Authorization: Bearer <session_token>."
+        ),
+    }
+
+
+@app.get("/api/me")
+def me(
+    authorization: Optional[str] = Header(default=None, alias="Authorization"),
+    x_client_id: Optional[str] = Header(default=None, alias="X-Client-Id"),
+):
+    ident = _resolve_quota_key(authorization, x_client_id)
+    snap = _quota_snapshot(ident["quota_key"])
+    return {
+        "openid": ident["openid"],
+        "client_id": ident["client_id"],
+        "auth": ident["auth"],
+        "quota_key": ident["quota_key"],
+        "wechat_login": "live" if WECHAT_LOGIN_READY else "dev",
+        "quota": {
+            "used": snap["used"],
+            "limit": snap["limit"],
+            "remaining": snap["remaining"],
+            "day": snap["day"],
+            "tz": snap["tz"],
+        },
+    }
 
 
 @app.get("/api/quota")
-def get_quota(x_client_id: Optional[str] = Header(default=None, alias="X-Client-Id")):
-    client_id = _client_id_from_header(x_client_id)
-    snap = _quota_snapshot(client_id)
+def get_quota(
+    authorization: Optional[str] = Header(default=None, alias="Authorization"),
+    x_client_id: Optional[str] = Header(default=None, alias="X-Client-Id"),
+):
+    ident = _resolve_quota_key(authorization, x_client_id)
+    snap = _quota_snapshot(ident["quota_key"])
     return {
-        "client_id": snap["client_id"],
+        "client_id": ident["client_id"],
+        "openid": ident["openid"],
+        "auth": ident["auth"],
         "used": snap["used"],
         "limit": snap["limit"],
         "remaining": snap["remaining"],
@@ -202,7 +432,6 @@ def _collect_upload_to_input(files: list[UploadFile], work: Path) -> Path:
                 _safe_extract_zip(raw, extract_to)
             except zipfile.BadZipFile as e:
                 raise HTTPException(status_code=400, detail=f"Bad zip: {name}") from e
-            # If zip contained a single top-level folder, flatten one level for convenience
             children = [p for p in extract_to.iterdir()]
             if len(children) == 1 and children[0].is_dir():
                 for child in children[0].iterdir():
@@ -216,7 +445,6 @@ def _collect_upload_to_input(files: list[UploadFile], work: Path) -> Path:
         else:
             shutil.copy2(raw, input_dir / name)
 
-    # If only one extracted zip folder and no loose files, use that as input root
     entries = list(input_dir.iterdir())
     if len(entries) == 1 and entries[0].is_dir():
         return entries[0]
@@ -261,7 +489,6 @@ def _run_hermes_organizer(input_dir: Path, output_dir: Path) -> dict:
     env["INPUT_DIR"] = str(input_dir)
     env["OUTPUT_DIR"] = str(output_dir)
     env["OBSIDIAN_VAULT_PATH"] = str(output_dir)
-    # Soft budget slightly under process timeout
     env.setdefault("HERMES_RUN_BUDGET", str(max(60, HERMES_TIMEOUT_SEC - 30)))
 
     proc = subprocess.run(
@@ -278,7 +505,6 @@ def _run_hermes_organizer(input_dir: Path, output_dir: Path) -> dict:
         )
     home = output_dir / "Home.md"
     if not home.is_file():
-        # Hermes may have written something but not Home.md — treat as soft failure
         raise RuntimeError("Hermes finished but Home.md missing")
     return {
         "engine": "hermes",
@@ -289,21 +515,43 @@ def _run_hermes_organizer(input_dir: Path, output_dir: Path) -> dict:
 
 def _run_organizer(input_dir: Path, output_dir: Path) -> dict:
     """
-    Prefer Hermes when API key + script exist; on any failure fall back to script.
-    Returns engine: "hermes" | "script". Never logs API keys.
+    Engine selection via ORGANIZE_ENGINE=auto|hermes|script (default auto).
+    Container default should be script; auto prefers Hermes when key+script exist.
+    Never logs API keys.
     """
+    engine_pref = ORGANIZE_ENGINE if ORGANIZE_ENGINE in ("auto", "hermes", "script") else "auto"
+
+    if engine_pref == "script":
+        return _run_script_organizer(input_dir, output_dir)
+
     try_hermes = (
         HERMES_SCRIPT.is_file()
         and os.access(HERMES_SCRIPT, os.X_OK)
         and _has_model_api_key()
     )
+
+    if engine_pref == "hermes":
+        if not try_hermes:
+            raise HTTPException(
+                status_code=503,
+                detail="ORGANIZE_ENGINE=hermes but Hermes script or model API key is unavailable",
+            )
+        try:
+            return _run_hermes_organizer(input_dir, output_dir)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Hermes organize failed: {type(exc).__name__}",
+            ) from exc
+
+    # auto
     if try_hermes:
         try:
             return _run_hermes_organizer(input_dir, output_dir)
         except Exception as exc:
-            # Fall back; keep message free of secrets
             print(f"[organize] Hermes unavailable, falling back to script: {type(exc).__name__}")
-            # Clean partial output so script starts fresh
             if output_dir.exists():
                 shutil.rmtree(output_dir, ignore_errors=True)
             meta = _run_script_organizer(input_dir, output_dir)
@@ -325,20 +573,21 @@ def _zip_vault(vault_dir: Path, zip_path: Path) -> None:
 @app.post("/api/organize")
 async def organize(
     files: list[UploadFile] = File(...),
+    authorization: Optional[str] = Header(default=None, alias="Authorization"),
     x_client_id: Optional[str] = Header(default=None, alias="X-Client-Id"),
 ):
     """
     Accept multipart .zip of notes and/or multiple files.
-    Runs organizer (Hermes-first), zips vault, returns job_id for download.
+    Runs organizer, zips vault, returns job_id for download.
+    Quota keyed by openid when Bearer token present; else X-Client-Id.
     """
-    client_id = _client_id_from_header(x_client_id)
-    quota = _check_and_consume_quota(client_id)
+    ident = _resolve_quota_key(authorization, x_client_id)
+    quota = _check_and_consume_quota(ident["quota_key"])
 
     job_id = uuid.uuid4().hex
     work = Path(tempfile.mkdtemp(prefix=f"job-{job_id}-", dir=str(JOBS_DIR)))
     try:
         input_dir = _collect_upload_to_input(files, work)
-        # Ensure we have at least one file under input
         file_count = sum(1 for p in input_dir.rglob("*") if p.is_file())
         if file_count == 0:
             raise HTTPException(status_code=400, detail="Upload contained no files")
@@ -357,7 +606,9 @@ async def organize(
             "work_dir": str(work),
             "engine": meta["engine"],
             "file_count": file_count,
-            "client_id": client_id,
+            "quota_key": ident["quota_key"],
+            "openid": ident["openid"],
+            "client_id": ident["client_id"],
         }
         return JSONResponse(
             {

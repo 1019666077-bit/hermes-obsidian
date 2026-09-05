@@ -1,0 +1,28 @@
+# Hermes×Obsidian API — Phase 5
+# Usage: cp .env.example .env   # optional; fill WECHAT_* for live login
+#        docker compose up --build
+# WeChat 真机调试需要 HTTPS 反代（见 PHASE5.md）
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    ports:
+      - "8787:8787"
+    volumes:
+      # Persist jobs / quota / sessions across restarts
+      - ./server/jobs:/app/server/jobs
+      # Optional advanced Hermes config (uncomment if you have keys locally):
+      # - ${HOME}/.hermes:/root/.hermes:ro
+    # Compose auto-loads project `.env` for ${VAR} substitution.
+    # Optional template (empty secrets) — safe to always include:
+    env_file:
+      - .env.example
+    environment:
+      ORGANIZE_ENGINE: ${ORGANIZE_ENGINE:-script}
+      HERMES_TIMEOUT_SEC: ${HERMES_TIMEOUT_SEC:-240}
+      FREE_QUOTA_LIMIT: ${FREE_QUOTA_LIMIT:-5}
+      WECHAT_APPID: ${WECHAT_APPID:-}
+      WECHAT_SECRET: ${WECHAT_SECRET:-}
+    restart: unless-stopped
