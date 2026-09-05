@@ -1,19 +1,11 @@
-.section-title {
-  font-size: 32rpx;
-  font-weight: 600;
-  margin-bottom: 16rpx;
-}
-
-.desc {
-  color: #6b7280;
+.file-chip {
   margin-bottom: 24rpx;
-  font-size: 26rpx;
-}
-
-.file-name {
-  margin-top: 20rpx;
-  color: #4f46e5;
+  padding: 16rpx 20rpx;
+  color: #3730a3;
+  background: #eef2ff;
+  border-radius: 12rpx;
   word-break: break-all;
+  font-size: 26rpx;
 }
 
 .status {
@@ -27,24 +19,16 @@
   word-break: break-all;
 }
 
-.btn-secondary {
-  background: #e5e7eb;
-  color: #1a1a2e;
-  border-radius: 12rpx;
-  padding: 24rpx 40rpx;
-  font-size: 30rpx;
-  text-align: center;
-  border: none;
-}
-
-.quota {
-  color: #059669;
-  font-size: 24rpx;
-  margin-bottom: 20rpx;
-}
-
 .engine {
   margin-top: 12rpx;
   font-size: 24rpx;
   color: #4f46e5;
+}
+
+.btn-upgrade {
+  margin-top: 24rpx;
+}
+
+.btn-save {
+  margin-top: 16rpx;
 }

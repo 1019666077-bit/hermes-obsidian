@@ -84,6 +84,8 @@ docker compose -f deploy/docker-compose.prod.yml up -d
 - [ ] 域名已备案（若服务器在中国大陆）
 - [ ] 证书有效、健康检查 `https://你的域名/health` 返回 ok
 
+真登录步骤与常见错误（code 无效、Secret 错误、域名未配）见 [`PHASE7.md`](PHASE7.md)。
+
 ## 4. 验证
 
 ```bash

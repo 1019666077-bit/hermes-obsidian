@@ -80,6 +80,8 @@ server {
 
 ### 如何填写 WECHAT_*（真登录）
 
+完整联调清单（AppID/Secret、DEV vs live、`wx.login` 流程、合法域名、常见错误）见 **[`PHASE7.md`](PHASE7.md)**。
+
 1. 登录微信公众平台 → 你的小程序
 2. **开发 → 开发管理 → 开发设置**，复制 **AppID(小程序ID)** → 写入 `.env` 的 `WECHAT_APPID=`
 3. 同页生成/重置 **AppSecret** → 写入 `WECHAT_SECRET=`（只放服务器环境变量，**不要**写进小程序代码或 git）
@@ -93,7 +95,7 @@ server {
 | `WECHAT_APPID` / `WECHAT_SECRET` | 微信登录；空=dev 模式 |
 | `ORGANIZE_ENGINE` | `auto` \| `hermes` \| `script` |
 | `HERMES_TIMEOUT_SEC` | Hermes 超时（默认 240） |
-| `FREE_QUOTA_LIMIT` | 每日免费整理次数（默认 5，Asia/Shanghai） |
+| `FREE_QUOTA_LIMIT` | 每日免费整理次数（默认 5，北京时间）。用完 429，文案提示明天恢复或开通会员（演示，无支付） |
 
 ## 5. 小程序
 

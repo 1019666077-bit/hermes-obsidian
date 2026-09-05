@@ -29,6 +29,7 @@ cd server && ./start.sh
 
 - 设置 `WECHAT_APPID` + `WECHAT_SECRET` → 调用微信 `jscode2session`
 - 否则 **DEV 模式**：任意 `code` 换假 `openid`（`dev_openid_*`）与 token（7 天，存 `jobs/sessions.json`）
+- 真登录联调清单见仓库根目录 [`PHASE7.md`](../PHASE7.md)
 
 ### 整理引擎
 
@@ -38,7 +39,7 @@ cd server && ./start.sh
 
 - 有 `Authorization: Bearer <token>` → 按 openid
 - 否则 `X-Client-Id`（缺省 `anonymous`）
-- 每日 `FREE_QUOTA_LIMIT`（默认 5，Asia/Shanghai）；超限 429
+- 每日 `FREE_QUOTA_LIMIT`（默认 5，北京时间）；超限 429，文案含免费试用说明与「开通会员」提示（演示，无在线支付）
 
 ## curl 示例
 

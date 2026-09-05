@@ -2,7 +2,7 @@ const { ensureLogin } = require('./utils/config.js')
 
 App({
   onLaunch() {
-    console.log('Hermes×Obsidian mini-program launched (Phase 5)')
+    console.log('Hermes×Obsidian mini-program launched (Phase 7)')
     ensureLogin().then((r) => {
       if (r && r.ok) {
         console.log('login ok', r.mode, r.openid)

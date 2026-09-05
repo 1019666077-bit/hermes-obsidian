@@ -1,7 +1,9 @@
 /**
- * 后端地址配置 + 客户端 ID + 微信登录 session
- * 开发者工具本地调试可用 http://127.0.0.1:8787
- * 真机调试 / 正式版必须配置 HTTPS 合法域名（微信公众平台 → 开发 → 开发管理 → 服务器域名）
+ * 后端地址 + 客户端 ID + 微信登录 session
+ *
+ * 本地 DEV 默认 http://127.0.0.1:8787（开发者工具请关闭域名校验）。
+ * 真机 / 正式版改为 HTTPS，或在控制台：
+ *   wx.setStorageSync('hermes_api_base', 'https://你的域名')
  *
  * 登录：wx.login → POST /api/login → 保存 session_token
  * - 未配置 WECHAT_* 时后端为 DEV 模式（任意 code 可换假 openid）
@@ -11,8 +13,9 @@
 const STORAGE_CLIENT = 'hermes_client_id'
 const STORAGE_TOKEN = 'hermes_session_token'
 const STORAGE_OPENID = 'hermes_openid'
+const STORAGE_API_BASE = 'hermes_api_base'
 
-const baseUrl = 'http://127.0.0.1:8787'
+const DEFAULT_BASE_URL = 'http://127.0.0.1:8787'
 
 function _randomId() {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
@@ -21,6 +24,18 @@ function _randomId() {
     s += chars.charAt(Math.floor(Math.random() * chars.length))
   }
   return s
+}
+
+function getBaseUrl() {
+  try {
+    const stored = wx.getStorageSync(STORAGE_API_BASE)
+    if (stored && typeof stored === 'string' && stored.trim()) {
+      return stored.trim().replace(/\/$/, '')
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  return DEFAULT_BASE_URL
 }
 
 function getClientId() {
@@ -84,6 +99,68 @@ function clientHeaders() {
   return h
 }
 
+/** FastAPI detail 可能是字符串或 { message, upgrade_hint } */
+function extractDetail(body) {
+  if (!body) return ''
+  const d = body.detail
+  if (typeof d === 'string' && d) return d
+  if (d && typeof d === 'object') {
+    return d.message || d.upgrade_hint || ''
+  }
+  if (typeof body.message === 'string') return body.message
+  return ''
+}
+
+function showUpgradeModal(extraHint) {
+  const content = extraHint
+    || '每天可免费整理 5 次（北京时间 0 点重置）。用完后可第二天再试，或联系管理员手工开通会员。当前为演示，暂无在线支付。'
+  wx.showModal({
+    title: '开通会员',
+    content,
+    showCancel: false,
+    confirmText: '知道了'
+  })
+}
+
+function _postLogin(code) {
+  return new Promise((resolve) => {
+    wx.request({
+      url: `${getBaseUrl()}/api/login`,
+      method: 'POST',
+      header: {
+        'Content-Type': 'application/json',
+        'X-Client-Id': getClientId()
+      },
+      data: { code },
+      success: (res) => {
+        if (res.statusCode >= 200 && res.statusCode < 300 && res.data && res.data.session_token) {
+          const token = res.data.session_token || res.data.token
+          const openid = res.data.openid || ''
+          saveSession(token, openid)
+          resolve({
+            ok: true,
+            mode: res.data.mode || 'unknown',
+            openid,
+            token,
+            hint: res.data.hint
+          })
+        } else {
+          console.warn('login failed', res.statusCode, res.data)
+          resolve({
+            ok: false,
+            error: extractDetail(res.data) || '登录失败',
+            statusCode: res.statusCode
+          })
+        }
+      },
+      fail: (err) => {
+        console.warn('login request fail', err)
+        resolve({ ok: false, error: 'network' })
+      }
+    })
+  })
+}
+
 /**
  * wx.login → POST /api/login → persist token
  * Resolves with { ok, mode, openid, token } or { ok:false, error }
@@ -93,57 +170,17 @@ function ensureLogin() {
     wx.login({
       success: (loginRes) => {
         const code = (loginRes && loginRes.code) || 'dev-local-code'
-        wx.request({
-          url: `${baseUrl}/api/login`,
-          method: 'POST',
-          header: {
-            'Content-Type': 'application/json',
-            'X-Client-Id': getClientId()
-          },
-          data: { code },
-          success: (res) => {
-            if (res.statusCode >= 200 && res.statusCode < 300 && res.data && res.data.session_token) {
-              const token = res.data.session_token || res.data.token
-              const openid = res.data.openid || ''
-              saveSession(token, openid)
-              resolve({
-                ok: true,
-                mode: res.data.mode || 'unknown',
-                openid,
-                token,
-                hint: res.data.hint
-              })
-            } else {
-              console.warn('login failed', res.statusCode, res.data)
-              resolve({ ok: false, error: (res.data && res.data.detail) || 'login failed' })
-            }
-          },
-          fail: (err) => {
-            console.warn('login request fail', err)
-            resolve({ ok: false, error: 'network' })
-          }
-        })
+        _postLogin(code).then(resolve)
       },
       fail: (err) => {
         // 开发者工具外偶发；仍可用假 code 试后端 DEV 模式
         console.warn('wx.login fail, trying dev code', err)
-        wx.request({
-          url: `${baseUrl}/api/login`,
-          method: 'POST',
-          header: {
-            'Content-Type': 'application/json',
-            'X-Client-Id': getClientId()
-          },
-          data: { code: 'dev-fallback-' + getClientId() },
-          success: (res) => {
-            if (res.statusCode < 300 && res.data && res.data.session_token) {
-              saveSession(res.data.session_token, res.data.openid || '')
-              resolve({ ok: true, mode: res.data.mode || 'dev', openid: res.data.openid, token: res.data.session_token })
-            } else {
-              resolve({ ok: false, error: 'wx.login failed' })
-            }
-          },
-          fail: () => resolve({ ok: false, error: 'wx.login failed' })
+        _postLogin('dev-fallback-' + getClientId()).then((r) => {
+          if (r.ok) {
+            resolve(r)
+          } else {
+            resolve({ ok: false, error: r.error || 'wx.login failed' })
+          }
         })
       }
     })
@@ -151,12 +188,15 @@ function ensureLogin() {
 }
 
 module.exports = {
-  baseUrl,
+  DEFAULT_BASE_URL,
+  getBaseUrl,
   getClientId,
   getSessionToken,
   getOpenId,
   clientHeaders,
   ensureLogin,
   saveSession,
-  clearSession
+  clearSession,
+  extractDetail,
+  showUpgradeModal
 }

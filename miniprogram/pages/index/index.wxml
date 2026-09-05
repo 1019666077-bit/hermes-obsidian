@@ -3,14 +3,28 @@
     <view class="title">笔记整理成 Obsidian</view>
     <view class="subtitle">Hermes × Obsidian</view>
     <view class="pitch">
-      上传杂乱的笔记压缩包或文件，后端自动整理成结构清晰的 Obsidian vault（Inbox / Topics / Sources / MOC），一键下载。
+      上传杂乱笔记，整理成 Inbox / Topics / Sources / MOC，再下载导入 Obsidian。
     </view>
     <view class="steps">
-      <view class="step">1. 选择笔记 zip 或文件</view>
-      <view class="step">2. 云端整理成 vault</view>
-      <view class="step">3. 下载并导入 Obsidian</view>
+      <view class="step"><text class="step-num">1</text>选择笔记 zip 或文件</view>
+      <view class="step"><text class="step-num">2</text>云端整理成 vault</view>
+      <view class="step"><text class="step-num">3</text>下载并导入 Obsidian</view>
     </view>
     <button class="btn-primary" bindtap="goOrganize">开始整理</button>
+    <view wx:if="{{loginLabel}}" class="login-chip">{{loginLabel}}</view>
   </view>
-  <view class="hint">开发版默认连接本机 API：127.0.0.1:8787</view>
+
+  <view class="card quota-card {{exhausted ? 'is-exhausted' : ''}}">
+    <view class="quota-head">
+      <text class="quota-plan">{{planLabel}}</text>
+      <text class="quota-remain">{{quotaRemainLabel}}</text>
+    </view>
+    <view class="quota-bar">
+      <view class="quota-bar-fill" style="width: {{quotaPercent}}%;"></view>
+    </view>
+    <view class="quota-hint">{{quotaHint}}</view>
+    <button wx:if="{{exhausted}}" class="btn-primary btn-upgrade" bindtap="onUpgrade">开通会员</button>
+  </view>
+
+  <view class="hint">开发版默认连接本机 API（{{apiBase}}）。真机需 HTTPS，可在本地存储 hermes_api_base 修改。</view>
 </view>
