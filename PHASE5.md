@@ -95,7 +95,7 @@ server {
 | `WECHAT_APPID` / `WECHAT_SECRET` | 微信登录；空=dev 模式 |
 | `ORGANIZE_ENGINE` | `auto` \| `hermes` \| `script` |
 | `HERMES_TIMEOUT_SEC` | Hermes 超时（默认 240） |
-| `FREE_QUOTA_LIMIT` | 每日免费整理次数（默认 5，Asia/Shanghai） |
+| `FREE_QUOTA_LIMIT` | 每日免费整理次数（默认 5，北京时间）。用完 429，文案提示明天恢复或开通会员（演示，无支付） |
 
 ## 5. 小程序
 

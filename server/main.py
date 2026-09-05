@@ -37,6 +37,8 @@ HERMES_ENV_FILE = Path.home() / ".hermes" / ".env"
 # Free tier: configurable organizes per calendar day (Asia/Shanghai)
 QUOTA_LIMIT = int(os.environ.get("FREE_QUOTA_LIMIT", os.environ.get("QUOTA_DAILY_LIMIT", "5")))
 QUOTA_TZ = ZoneInfo("Asia/Shanghai")
+QUOTA_UPGRADE_HINT = "开通会员可继续整理。当前为演示，暂无在线支付，请联系管理员手工开通。"
+QUOTA_UPGRADE_CTA = "开通会员"
 HERMES_TIMEOUT_SEC = int(os.environ.get("HERMES_TIMEOUT_SEC", "240"))  # 180–300s band
 SCRIPT_TIMEOUT_SEC = 120
 SESSION_DAYS = 7
@@ -45,6 +47,16 @@ ORGANIZE_ENGINE = (os.environ.get("ORGANIZE_ENGINE") or "auto").strip().lower()
 WECHAT_APPID = (os.environ.get("WECHAT_APPID") or "").strip()
 WECHAT_SECRET = (os.environ.get("WECHAT_SECRET") or "").strip()
 WECHAT_LOGIN_READY = bool(WECHAT_APPID and WECHAT_SECRET)
+
+# WeChat jscode2session errcode → 中文说明（不回传 secret）
+WECHAT_ERR_HINTS = {
+    40013: "AppID 无效，请核对 .env 的 WECHAT_APPID 是否与公众平台小程序 AppID 一致。",
+    40125: "AppSecret 错误，请在公众平台重置并更新 .env 的 WECHAT_SECRET 后重启。",
+    40029: "code 无效：可能已过期、已使用，或小程序 AppID 与服务器不一致。请重新 wx.login。",
+    40163: "code 已使用，请重新 wx.login 获取新 code。",
+    45011: "登录调用过于频繁，请稍后重试。",
+    40226: "微信拒绝该用户登录（高风险标记）。",
+}
 
 API_KEY_NAMES = (
     "OPENROUTER_API_KEY",
@@ -213,6 +225,40 @@ def _resolve_quota_key(
     }
 
 
+def _quota_copy(remaining: int) -> dict:
+    """User-facing free-trial / 开通 copy. Stub membership only — no payment."""
+    exhausted = remaining <= 0
+    if exhausted:
+        hint = (
+            f"今日 {QUOTA_LIMIT} 次免费额度已用完，明天 0 点（北京时间）恢复。"
+            "也可开通会员继续整理。"
+        )
+    elif remaining == QUOTA_LIMIT:
+        hint = f"免费试用：每天可整理 {QUOTA_LIMIT} 次。用完后第二天恢复，或开通会员。"
+    else:
+        hint = f"今日还可整理 {remaining} 次（共 {QUOTA_LIMIT} 次）。用完后第二天恢复，或开通会员。"
+    return {
+        "plan": "free",
+        "plan_label": "免费试用",
+        "hint": hint,
+        "upgrade_cta": QUOTA_UPGRADE_CTA,
+        "upgrade_hint": QUOTA_UPGRADE_HINT,
+        "exhausted": exhausted,
+    }
+
+
+def _quota_public_fields(snap: dict) -> dict:
+    copy = _quota_copy(snap["remaining"])
+    return {
+        "used": snap["used"],
+        "limit": snap["limit"],
+        "remaining": snap["remaining"],
+        "day": snap["day"],
+        "tz": snap["tz"],
+        **copy,
+    }
+
+
 def _quota_snapshot(quota_key: str) -> dict:
     today = _today_key()
     store = _load_quota()
@@ -239,7 +285,18 @@ def _check_and_consume_quota(quota_key: str) -> dict:
     if used >= QUOTA_LIMIT:
         raise HTTPException(
             status_code=429,
-            detail=f"今日免费整理次数已用完（上限 {QUOTA_LIMIT} 次/天，时区 Asia/Shanghai）。请明天再试。",
+            detail={
+                "code": "QUOTA_EXHAUSTED",
+                "message": (
+                    f"今日免费次数已用完（每天 {QUOTA_LIMIT} 次，按北京时间计算）。"
+                    "明天 0 点自动恢复。"
+                ),
+                "upgrade_cta": QUOTA_UPGRADE_CTA,
+                "upgrade_hint": QUOTA_UPGRADE_HINT,
+                "limit": QUOTA_LIMIT,
+                "used": used,
+                "remaining": 0,
+            },
         )
     day[quota_key] = used + 1
     store[today] = day
@@ -262,23 +319,44 @@ def _wechat_jscode2session(code: str) -> dict:
         with urllib.request.urlopen(req, timeout=15) as resp:
             body = resp.read().decode("utf-8", errors="replace")
     except urllib.error.URLError as e:
-        raise HTTPException(status_code=502, detail=f"WeChat jscode2session network error: {type(e).__name__}") from e
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "WECHAT_NETWORK",
+                "message": "连接微信登录接口失败，请检查服务器出网后重试。",
+            },
+        ) from e
     try:
         data = json.loads(body)
     except json.JSONDecodeError as e:
-        raise HTTPException(status_code=502, detail="WeChat jscode2session invalid JSON") from e
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "WECHAT_BAD_RESPONSE", "message": "微信登录接口返回无法解析。"},
+        ) from e
     if not isinstance(data, dict):
-        raise HTTPException(status_code=502, detail="WeChat jscode2session bad response")
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "WECHAT_BAD_RESPONSE", "message": "微信登录接口返回异常。"},
+        )
     errcode = data.get("errcode")
     if errcode not in (None, 0):
         # Never echo secret; errmsg from WeChat is ok
+        hint = WECHAT_ERR_HINTS.get(int(errcode)) if str(errcode).lstrip("-").isdigit() else None
         raise HTTPException(
             status_code=401,
-            detail=f"WeChat login failed: errcode={errcode} errmsg={data.get('errmsg', '')}",
+            detail={
+                "code": "WECHAT_LOGIN_FAILED",
+                "message": hint or f"微信登录失败（errcode={errcode}）。",
+                "errcode": errcode,
+                "errmsg": data.get("errmsg") or "",
+            },
         )
     openid = str(data.get("openid") or "").strip()
     if not openid:
-        raise HTTPException(status_code=401, detail="WeChat login returned no openid")
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "WECHAT_NO_OPENID", "message": "微信登录未返回 openid。"},
+        )
     return {"openid": openid, "session_key_present": bool(data.get("session_key")), "unionid": data.get("unionid")}
 
 
@@ -298,7 +376,7 @@ def login(body: LoginBody):
     """
     code = (body.code or "").strip()
     if not code:
-        raise HTTPException(status_code=400, detail="code is required")
+        raise HTTPException(status_code=400, detail="缺少 code")
 
     if WECHAT_LOGIN_READY:
         wx = _wechat_jscode2session(code)
@@ -311,7 +389,7 @@ def login(body: LoginBody):
             "token": issued["session_token"],
             "expires_at": issued["expires_at"],
             "expires_in_sec": issued["expires_in_sec"],
-            "hint": "Send Authorization: Bearer <session_token> on API calls; quota keys by openid.",
+            "hint": "真登录成功。后续请求请带 Authorization: Bearer <session_token>，配额按 openid 计算。",
         }
 
     # Dev mode: no WeChat credentials configured
@@ -326,10 +404,9 @@ def login(body: LoginBody):
         "expires_at": issued["expires_at"],
         "expires_in_sec": issued["expires_in_sec"],
         "hint": (
-            "DEV MODE: WECHAT_APPID/WECHAT_SECRET unset. "
-            "Any code is accepted; openid is fake (dev_openid_*). "
-            "Set WECHAT_* env vars for real jscode2session. "
-            "Send Authorization: Bearer <session_token>."
+            "开发模式：未配置 WECHAT_APPID/WECHAT_SECRET。"
+            "任意 code 可换假 openid（dev_openid_*）。"
+            "真登录请设置 WECHAT_* 后重启。后续请求请带 Authorization: Bearer <session_token>。"
         ),
     }
 
@@ -347,13 +424,7 @@ def me(
         "auth": ident["auth"],
         "quota_key": ident["quota_key"],
         "wechat_login": "live" if WECHAT_LOGIN_READY else "dev",
-        "quota": {
-            "used": snap["used"],
-            "limit": snap["limit"],
-            "remaining": snap["remaining"],
-            "day": snap["day"],
-            "tz": snap["tz"],
-        },
+        "quota": _quota_public_fields(snap),
     }
 
 
@@ -368,9 +439,7 @@ def get_quota(
         "client_id": ident["client_id"],
         "openid": ident["openid"],
         "auth": ident["auth"],
-        "used": snap["used"],
-        "limit": snap["limit"],
-        "remaining": snap["remaining"],
+        **_quota_public_fields(snap),
     }
 
 
@@ -617,11 +686,7 @@ async def organize(
                 "download_url": f"/api/download/{job_id}",
                 "engine": meta["engine"],
                 "file_count": file_count,
-                "quota": {
-                    "used": quota["used"],
-                    "limit": quota["limit"],
-                    "remaining": quota["remaining"],
-                },
+                "quota": _quota_public_fields(quota),
             }
         )
     except HTTPException:

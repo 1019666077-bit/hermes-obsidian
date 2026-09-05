@@ -39,7 +39,7 @@ cd server && ./start.sh
 
 - 有 `Authorization: Bearer <token>` → 按 openid
 - 否则 `X-Client-Id`（缺省 `anonymous`）
-- 每日 `FREE_QUOTA_LIMIT`（默认 5，Asia/Shanghai）；超限 429
+- 每日 `FREE_QUOTA_LIMIT`（默认 5，北京时间）；超限 429，文案含免费试用说明与「开通会员」提示（演示，无在线支付）
 
 ## curl 示例
 
