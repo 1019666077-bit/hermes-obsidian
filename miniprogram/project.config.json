@@ -1,0 +1,25 @@
+{
+  "description": "Hermes×Obsidian — 笔记整理成 Obsidian vault",
+  "packOptions": {
+    "ignore": [],
+    "include": []
+  },
+  "setting": {
+    "bundle": false,
+    "es6": true,
+    "postcss": true,
+    "minified": true,
+    "urlCheck": false,
+    "coverView": true,
+    "lazyloadPlaceholderEnable": false,
+    "preloadBackgroundData": false,
+    "autoAudits": false,
+    "showShadowRootInWxmlPanel": true,
+    "compileHotReLoad": true
+  },
+  "compileType": "miniprogram",
+  "libVersion": "3.5.5",
+  "appid": "touristappid",
+  "projectname": "hermes-obsidian",
+  "condition": {}
+}

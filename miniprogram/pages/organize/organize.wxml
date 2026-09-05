@@ -1,0 +1,27 @@
+<view class="page">
+  <view class="card">
+    <view class="section-title">选择笔记</view>
+    <view class="desc">推荐上传包含笔记的 .zip；也可从聊天记录选择文件。</view>
+    <button class="btn-primary" bindtap="chooseFile" disabled="{{busy}}">选择 zip / 文件</button>
+    <view wx:if="{{fileName}}" class="file-name">已选：{{fileName}}</view>
+  </view>
+
+  <view class="card" wx:if="{{filePath}}">
+    <button class="btn-primary" bindtap="startOrganize" disabled="{{busy}}">
+      {{busy ? '整理中…' : '开始整理'}}
+    </button>
+  </view>
+
+  <view class="card" wx:if="{{status}}">
+    <view class="section-title">状态</view>
+    <view class="status">{{status}}</view>
+    <view wx:if="{{jobId}}" class="job">job_id: {{jobId}}</view>
+  </view>
+
+  <view class="card" wx:if="{{downloadPath}}">
+    <view class="section-title">结果</view>
+    <view class="desc">vault zip 已下载到本地临时路径，可打开或另存。</view>
+    <button class="btn-primary" bindtap="openVault" style="margin-bottom: 16rpx;">打开 / 预览 zip</button>
+    <button class="btn-secondary" bindtap="saveVault">保存到本地</button>
+  </view>
+</view>

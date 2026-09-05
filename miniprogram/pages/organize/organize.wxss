@@ -1,0 +1,38 @@
+.section-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  margin-bottom: 16rpx;
+}
+
+.desc {
+  color: #6b7280;
+  margin-bottom: 24rpx;
+  font-size: 26rpx;
+}
+
+.file-name {
+  margin-top: 20rpx;
+  color: #4f46e5;
+  word-break: break-all;
+}
+
+.status {
+  color: #374151;
+}
+
+.job {
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: #9ca3af;
+  word-break: break-all;
+}
+
+.btn-secondary {
+  background: #e5e7eb;
+  color: #1a1a2e;
+  border-radius: 12rpx;
+  padding: 24rpx 40rpx;
+  font-size: 30rpx;
+  text-align: center;
+  border: none;
+}

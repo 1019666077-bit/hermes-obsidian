@@ -1,0 +1,6 @@
+产品想法（随手记）
+
+用户把零散笔记丢进来，输出干净 Obsidian vault。
+目标用户：中文创始人 / 知识工作者。
+不要编造事实，只整理。
+英文也要支持：mixed Chinese/English notes。
