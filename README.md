@@ -11,6 +11,7 @@
 ## 目录
 
 - `miniprogram/` — 微信小程序（开发者工具导入）
+- `web/` — 本地浏览器试用页（无需微信开发者工具）
 - `server/` — FastAPI 整理服务（默认脚本引擎；可选 Hermes）
 - `docker-compose.yml` / `server/Dockerfile` — 容器部署
 - `.env.example` — 环境变量模板（勿提交真实密钥）
@@ -43,6 +44,17 @@ python3 organize_vault.py --input fixtures/messy-input --output /tmp/demo-vault
 
 Hermes Agent 请自行 clone：https://github.com/NousResearch/hermes-agent  
 安装与 DeepSeek 配置见 `PHASE2.md`（**不要把 API Key 提交进仓库**）。无本地 Hermes / Key 时 API 使用 `organize_vault.py`。
+
+## 本地网页试用
+
+无需微信开发者工具，用浏览器走同一套整理 API：
+
+```bash
+cd server && ./start.sh
+# open http://127.0.0.1:8787/  or /web/try.html
+```
+
+页面会显示 API 健康状态、`wechat_login` 模式与配额；点 DEV 登录（`POST /api/login`，code 为 `web-try`），再多选笔记文件整理，完成后可下载 vault zip。正式产品是微信小程序，本页仅本地试用。
 
 ## 微信开发者工具
 

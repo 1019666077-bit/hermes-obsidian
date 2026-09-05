@@ -24,6 +24,7 @@ COPY server/ /app/server/
 COPY organize_vault.py /app/organize_vault.py
 COPY run_hermes_organize.sh /app/run_hermes_organize.sh
 COPY skills/ /app/skills/
+COPY web/ /app/web/
 
 RUN chmod +x /app/organize_vault.py /app/run_hermes_organize.sh /app/server/start.sh \
     && mkdir -p /app/server/jobs

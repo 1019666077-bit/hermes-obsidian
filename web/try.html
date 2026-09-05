@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hermes × Obsidian 本地试用</title>
+  <style>
+    :root {
+      --bg: #f5f5f7;
+      --card: #fff;
+      --ink: #1a1a2e;
+      --muted: #6b7280;
+      --faint: #9ca3af;
+      --line: #eef0f4;
+      --indigo: #4f46e5;
+      --indigo-soft: #eef2ff;
+      --green: #059669;
+      --green-ink: #047857;
+      --amber: #b45309;
+      --red: #b91c1c;
+      --shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+        "Noto Sans SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    .wrap {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+    }
+
+    .hero {
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      font-size: 1.55rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0 0 6px;
+    }
+
+    .subtitle {
+      color: var(--indigo);
+      font-weight: 600;
+      margin: 0 0 10px;
+    }
+
+    .pitch {
+      color: #4b5563;
+      margin: 0;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 20px 18px;
+      margin: 14px 0;
+      box-shadow: var(--shadow);
+    }
+
+    .section-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin: 0 0 8px;
+    }
+
+    .desc, .hint {
+      color: var(--muted);
+      font-size: 0.92rem;
+      margin: 0 0 14px;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: var(--indigo-soft);
+      color: var(--indigo);
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+
+    .chip.ok { background: #ecfdf5; color: var(--green-ink); }
+    .chip.warn { background: #fff7ed; color: var(--amber); }
+    .chip.err { background: #fef2f2; color: var(--red); }
+    .chip.neutral { background: #f3f4f6; color: #374151; }
+
+    .meta {
+      font-size: 0.88rem;
+      color: var(--muted);
+      word-break: break-all;
+    }
+
+    .meta strong { color: #374151; }
+
+    .quota-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .quota-plan { color: var(--indigo); font-weight: 600; }
+    .quota-remain { font-weight: 600; }
+
+    .quota-bar {
+      height: 8px;
+      background: #e5e7eb;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+
+    .quota-bar-fill {
+      height: 100%;
+      width: 0;
+      background: var(--green);
+      border-radius: 999px;
+      transition: width 0.25s ease;
+    }
+
+    .quota-card.is-exhausted .quota-bar-fill { background: #d1d5db; }
+    .quota-card.is-exhausted .quota-remain { color: var(--amber); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      border: none;
+      border-radius: 12px;
+      padding: 13px 18px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      font-family: inherit;
+    }
+
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn + .btn { margin-top: 10px; }
+
+    .btn-primary { background: var(--indigo); color: #fff; }
+    .btn-secondary { background: #eef0f4; color: var(--ink); }
+    .btn-link {
+      background: #ecfdf5;
+      color: var(--green-ink);
+    }
+
+    input[type="file"] {
+      display: block;
+      width: 100%;
+      margin: 8px 0 14px;
+      font-size: 0.95rem;
+    }
+
+    .file-list {
+      margin: 0 0 14px;
+      padding: 0;
+      list-style: none;
+    }
+
+    .file-list li {
+      padding: 8px 10px;
+      background: #f8f8fb;
+      border-radius: 10px;
+      margin-bottom: 6px;
+      font-size: 0.9rem;
+      color: #374151;
+      word-break: break-all;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 18px 10px;
+      background: #f8f8fb;
+      border-radius: 12px;
+      margin-bottom: 14px;
+      color: var(--faint);
+    }
+
+    .empty strong {
+      display: block;
+      color: #374151;
+      margin-bottom: 4px;
+    }
+
+    .status { margin: 0; }
+    .status.ok { color: var(--green-ink); }
+    .status.err { color: var(--red); }
+
+    .result-kv {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin: 8px 0 0;
+    }
+
+    .result-kv code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.82rem;
+      word-break: break-all;
+    }
+
+    footer {
+      text-align: center;
+      color: var(--faint);
+      font-size: 0.82rem;
+      padding: 8px 8px 0;
+      line-height: 1.55;
+    }
+
+    footer code {
+      font-size: 0.78rem;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero card">
+      <h1>Hermes × Obsidian 本地试用</h1>
+      <p class="subtitle">上传乱笔记 → 整理成 Vault → 下载</p>
+      <p class="pitch">无需微信开发者工具。先看接口状态，DEV 登录后选择多个笔记文件并整理。</p>
+    </header>
+
+    <section class="card" id="health-card">
+      <h2 class="section-title">接口状态</h2>
+      <div class="row" id="health-chips">
+        <span class="chip warn">正在检查…</span>
+      </div>
+      <p class="meta" id="health-meta">默认 API：<strong>http://127.0.0.1:8787</strong></p>
+    </section>
+
+    <section class="card quota-card" id="quota-card">
+      <div class="quota-head">
+        <span class="quota-plan" id="plan-label">免费试用</span>
+        <span class="quota-remain" id="quota-remain">配额未加载</span>
+      </div>
+      <div class="quota-bar"><div class="quota-bar-fill" id="quota-fill"></div></div>
+      <p class="desc" id="quota-hint" style="margin-bottom:0">登录后按 openid 计次；未登录按本机试用身份计次。</p>
+    </section>
+
+    <section class="card">
+      <h2 class="section-title">DEV 登录</h2>
+      <p class="desc">向 <code>/api/login</code> 发送 code <code>web-try</code>。未配置微信密钥时为开发模式。</p>
+      <button class="btn btn-primary" id="login-btn" type="button">DEV 登录（code: web-try）</button>
+      <p class="meta" id="login-meta" style="margin-top:12px"></p>
+    </section>
+
+    <section class="card">
+      <h2 class="section-title">上传并整理</h2>
+      <p class="desc">可多选 md / txt / csv / zip。字段名 <code>files</code>，对应 <code>POST /api/organize</code>。</p>
+      <input id="file-input" type="file" multiple accept=".md,.txt,.csv,.zip,.markdown,text/plain,text/markdown,text/csv,application/zip">
+      <ul class="file-list" id="file-list" hidden></ul>
+      <div class="empty" id="file-empty">
+        <strong>还没选择文件</strong>
+        可选用仓库 <code>fixtures/messy-input/</code> 里的样例笔记
+      </div>
+      <button class="btn btn-primary" id="organize-btn" type="button" disabled>开始整理</button>
+    </section>
+
+    <section class="card" id="result-card" hidden>
+      <h2 class="section-title">整理结果</h2>
+      <p class="status" id="result-status"></p>
+      <p class="result-kv" id="result-meta"></p>
+      <a class="btn btn-link" id="download-link" hidden>下载 vault zip</a>
+    </section>
+
+    <footer>
+      正式产品是微信小程序；本页仅本地试用；默认 API
+      <code>http://127.0.0.1:8787</code>
+    </footer>
+  </div>
+
+  <script>
+    const API_BASE = "";
+    const LOGIN_CODE = "web-try";
+    const STORAGE_TOKEN = "hermes_web_token";
+    const STORAGE_OPENID = "hermes_web_openid";
+    const STORAGE_CLIENT = "hermes_web_client_id";
+
+    const els = {
+      healthChips: document.getElementById("health-chips"),
+      healthMeta: document.getElementById("health-meta"),
+      quotaCard: document.getElementById("quota-card"),
+      planLabel: document.getElementById("plan-label"),
+      quotaRemain: document.getElementById("quota-remain"),
+      quotaFill: document.getElementById("quota-fill"),
+      quotaHint: document.getElementById("quota-hint"),
+      loginBtn: document.getElementById("login-btn"),
+      loginMeta: document.getElementById("login-meta"),
+      fileInput: document.getElementById("file-input"),
+      fileList: document.getElementById("file-list"),
+      fileEmpty: document.getElementById("file-empty"),
+      organizeBtn: document.getElementById("organize-btn"),
+      resultCard: document.getElementById("result-card"),
+      resultStatus: document.getElementById("result-status"),
+      resultMeta: document.getElementById("result-meta"),
+      downloadLink: document.getElementById("download-link"),
+    };
+
+    function clientId() {
+      let id = sessionStorage.getItem(STORAGE_CLIENT);
+      if (!id) {
+        id = "web_" + Math.random().toString(36).slice(2, 12);
+        sessionStorage.setItem(STORAGE_CLIENT, id);
+      }
+      return id;
+    }
+
+    function token() {
+      return sessionStorage.getItem(STORAGE_TOKEN) || "";
+    }
+
+    function headers(json) {
+      const h = { "X-Client-Id": clientId() };
+      const t = token();
+      if (t) h.Authorization = "Bearer " + t;
+      if (json) h["Content-Type"] = "application/json";
+      return h;
+    }
+
+    function extractDetail(body) {
+      if (!body) return "";
+      const d = body.detail;
+      if (typeof d === "string" && d) return d;
+      if (d && typeof d === "object") return d.message || d.upgrade_hint || "";
+      if (typeof body.message === "string") return body.message;
+      return "";
+    }
+
+    function chip(text, kind) {
+      const span = document.createElement("span");
+      span.className = "chip" + (kind ? " " + kind : "");
+      span.textContent = text;
+      return span;
+    }
+
+    function selectedFiles() {
+      return Array.from(els.fileInput.files || []);
+    }
+
+    function renderFiles() {
+      const files = selectedFiles();
+      els.fileList.innerHTML = "";
+      if (!files.length) {
+        els.fileList.hidden = true;
+        els.fileEmpty.hidden = false;
+        els.organizeBtn.disabled = true;
+        return;
+      }
+      els.fileEmpty.hidden = true;
+      els.fileList.hidden = false;
+      files.forEach((f) => {
+        const li = document.createElement("li");
+        const kb = Math.max(1, Math.round(f.size / 1024));
+        li.textContent = f.name + "（" + kb + " KB）";
+        els.fileList.appendChild(li);
+      });
+      els.organizeBtn.disabled = false;
+    }
+
+    function applyQuota(q) {
+      if (!q) return;
+      const limit = Number(q.limit) || 5;
+      const remaining = Number(q.remaining);
+      const exhausted = !!q.exhausted || remaining <= 0;
+      const percent = limit > 0 ? Math.max(0, Math.round((remaining / limit) * 100)) : 0;
+      els.quotaCard.classList.toggle("is-exhausted", exhausted);
+      els.planLabel.textContent = q.plan_label || "免费试用";
+      els.quotaRemain.textContent = exhausted
+        ? "今日已用完"
+        : "今日剩余 " + remaining + "/" + limit + " 次";
+      els.quotaFill.style.width = percent + "%";
+      els.quotaHint.textContent = q.hint || "";
+    }
+
+    async function refreshHealth() {
+      try {
+        const res = await fetch(API_BASE + "/health");
+        const data = await res.json();
+        els.healthChips.innerHTML = "";
+        els.healthChips.appendChild(chip(data.status === "ok" ? "API 正常" : "API 异常", data.status === "ok" ? "ok" : "err"));
+        els.healthChips.appendChild(chip("登录 " + (data.wechat_login || "unknown"), data.wechat_login === "live" ? "ok" : "neutral"));
+        if (data.organize_engine) {
+          els.healthChips.appendChild(chip("引擎 " + data.organize_engine, "neutral"));
+        }
+        els.healthMeta.innerHTML =
+          "服务 <strong>" + (data.service || "hermes-obsidian") + "</strong> · 版本 " +
+          (data.version || "—") + " · wechat_login=<strong>" + (data.wechat_login || "—") + "</strong>";
+        return data;
+      } catch (e) {
+        els.healthChips.innerHTML = "";
+        els.healthChips.appendChild(chip("API 未连接", "err"));
+        els.healthMeta.textContent = "无法访问本机 API。请先在 server/ 执行 ./start.sh，然后打开 http://127.0.0.1:8787/";
+        return null;
+      }
+    }
+
+    async function refreshQuota() {
+      try {
+        const res = await fetch(API_BASE + "/api/quota", { headers: headers() });
+        const data = await res.json();
+        if (res.ok) applyQuota(data);
+      } catch (e) {
+        els.quotaRemain.textContent = "配额暂不可用";
+      }
+    }
+
+    async function login() {
+      els.loginBtn.disabled = true;
+      els.loginMeta.textContent = "正在登录…";
+      try {
+        const res = await fetch(API_BASE + "/api/login", {
+          method: "POST",
+          headers: headers(true),
+          body: JSON.stringify({ code: LOGIN_CODE }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.session_token) {
+          throw new Error(extractDetail(data) || "登录失败");
+        }
+        sessionStorage.setItem(STORAGE_TOKEN, data.session_token);
+        if (data.openid) sessionStorage.setItem(STORAGE_OPENID, data.openid);
+        const mode = data.mode || "unknown";
+        els.loginMeta.innerHTML =
+          "已登录 · 模式 <strong>" + mode + "</strong> · openid <code>" +
+          (data.openid || "") + "</code>";
+        els.loginBtn.textContent = mode === "dev" ? "已 DEV 登录" : "已登录";
+        await refreshQuota();
+      } catch (e) {
+        els.loginMeta.textContent = e.message || "登录失败";
+        els.loginBtn.textContent = "DEV 登录（code: web-try）";
+      } finally {
+        els.loginBtn.disabled = false;
+      }
+    }
+
+    function showResult(kind, status, metaHtml) {
+      els.resultCard.hidden = false;
+      els.resultStatus.className = "status " + (kind || "");
+      els.resultStatus.textContent = status;
+      els.resultMeta.innerHTML = metaHtml || "";
+    }
+
+    async function organize() {
+      const files = selectedFiles();
+      if (!files.length) return;
+      els.organizeBtn.disabled = true;
+      els.downloadLink.hidden = true;
+      showResult("", "正在上传并整理…", "");
+      const fd = new FormData();
+      files.forEach((f) => fd.append("files", f, f.name));
+      try {
+        const res = await fetch(API_BASE + "/api/organize", {
+          method: "POST",
+          headers: headers(),
+          body: fd,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (data.quota) applyQuota(data.quota);
+        if (res.status === 429) {
+          showResult("err", extractDetail(data) || "今日免费次数已用完", "");
+          await refreshQuota();
+          return;
+        }
+        if (!res.ok || !data.job_id) {
+          showResult("err", extractDetail(data) || "整理失败", "");
+          await refreshQuota();
+          return;
+        }
+        const url = API_BASE + (data.download_url || "/api/download/" + data.job_id);
+        showResult(
+          "ok",
+          "整理完成，可以下载 vault zip。",
+          "任务 <code>" + data.job_id + "</code> · 引擎 <strong>" +
+            (data.engine || "—") + "</strong> · 文件 " + (data.file_count || files.length) + " 个"
+        );
+        els.downloadLink.href = url;
+        els.downloadLink.download = "obsidian-vault-" + String(data.job_id).slice(0, 8) + ".zip";
+        els.downloadLink.hidden = false;
+        await refreshQuota();
+      } catch (e) {
+        showResult("err", "请求失败：请确认 API 已启动（http://127.0.0.1:8787）。", "");
+      } finally {
+        els.organizeBtn.disabled = selectedFiles().length === 0;
+      }
+    }
+
+    els.loginBtn.addEventListener("click", login);
+    els.fileInput.addEventListener("change", renderFiles);
+    els.organizeBtn.addEventListener("click", organize);
+
+    (async function init() {
+      const t = token();
+      if (t) {
+        const oid = sessionStorage.getItem(STORAGE_OPENID) || "";
+        els.loginMeta.innerHTML = "会话仍有效" + (oid ? " · openid <code>" + oid + "</code>" : "");
+        els.loginBtn.textContent = "重新 DEV 登录";
+      }
+      await refreshHealth();
+      await refreshQuota();
+    })();
+  </script>
+</body>
+</html>

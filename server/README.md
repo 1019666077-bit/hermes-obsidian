@@ -17,6 +17,8 @@ cd server && ./start.sh
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
+| GET | `/` | 跳转到本地试用页 `/web/try.html` |
+| GET | `/web/*` | 静态试用页（仓库 `web/`） |
 | GET | `/health` | 健康检查（`phase: 5`，`wechat_login`） |
 | POST | `/api/login` | `{code}` → `session_token` / `openid`（无 WECHAT_* 为 DEV 模式） |
 | GET | `/api/me` | 当前身份 + 配额 |
