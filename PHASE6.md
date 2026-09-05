@@ -6,6 +6,19 @@
 
 ## 1. GitHub Actions → GHCR
 
+> **一次性启用 workflow**：当前推送账号的 OAuth token 缺少 `workflow` scope，因此正式路径文件先放在 `deploy/docker-publish.yml`。任选其一启用：
+>
+> ```bash
+> mkdir -p .github/workflows
+> cp deploy/docker-publish.yml .github/workflows/docker-publish.yml
+> gh auth refresh -h github.com -s workflow   # 浏览器授权后
+> git add .github/workflows/docker-publish.yml
+> git commit -m "ci: enable docker-publish workflow"
+> git push origin main
+> ```
+>
+> 或在 GitHub 网页：Add file → 新建 `.github/workflows/docker-publish.yml`，粘贴 `deploy/docker-publish.yml` 全文并提交。
+
 - 推送到 `main`（或手动 **Actions → Docker publish → Run workflow**）会构建 `server/Dockerfile`（**context = 仓库根目录**，以便复制 `organize_vault.py` / `skills/` 等），并推送：
   - `ghcr.io/1019666077-bit/hermes-obsidian:latest`
   - `ghcr.io/1019666077-bit/hermes-obsidian:<短 sha>`
