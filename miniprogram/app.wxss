@@ -6,6 +6,10 @@ page {
   line-height: 1.6;
 }
 
+.page {
+  padding: 8rpx 0 64rpx;
+}
+
 .btn-primary {
   background: #4f46e5;
   color: #fff;
@@ -20,10 +24,138 @@ page {
   opacity: 0.5;
 }
 
+.btn-secondary {
+  background: #eef0f4;
+  color: #1a1a2e;
+  border-radius: 12rpx;
+  padding: 24rpx 40rpx;
+  font-size: 30rpx;
+  text-align: center;
+  border: none;
+}
+
+.btn-secondary[disabled] {
+  opacity: 0.5;
+}
+
 .card {
   background: #fff;
   border-radius: 16rpx;
-  padding: 32rpx;
-  margin: 24rpx;
+  padding: 36rpx 32rpx;
+  margin: 20rpx 28rpx;
   box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.06);
+}
+
+.section-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  margin-bottom: 12rpx;
+}
+
+.desc {
+  color: #6b7280;
+  margin-bottom: 24rpx;
+  font-size: 26rpx;
+}
+
+.hint {
+  text-align: center;
+  color: #9ca3af;
+  font-size: 22rpx;
+  padding: 8rpx 40rpx 0;
+}
+
+.empty {
+  padding: 28rpx 12rpx 32rpx;
+  text-align: center;
+  background: #f8f8fb;
+  border-radius: 12rpx;
+  margin-bottom: 24rpx;
+}
+
+.empty-title {
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 6rpx;
+}
+
+.empty-desc {
+  color: #9ca3af;
+  font-size: 24rpx;
+}
+
+.quota-card {
+  padding-bottom: 32rpx;
+}
+
+.quota-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 16rpx;
+}
+
+.quota-plan {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #4f46e5;
+}
+
+.quota-remain {
+  font-size: 26rpx;
+  color: #111827;
+  font-weight: 600;
+}
+
+.quota-bar {
+  height: 12rpx;
+  background: #e5e7eb;
+  border-radius: 999rpx;
+  overflow: hidden;
+  margin-bottom: 16rpx;
+}
+
+.quota-bar-fill {
+  height: 100%;
+  background: #059669;
+  border-radius: 999rpx;
+}
+
+.quota-card.is-exhausted .quota-bar-fill {
+  background: #d1d5db;
+}
+
+.quota-card.is-exhausted .quota-remain {
+  color: #b45309;
+}
+
+.quota-hint {
+  color: #6b7280;
+  font-size: 24rpx;
+  line-height: 1.55;
+}
+
+.login-chip {
+  display: inline-block;
+  margin-top: 16rpx;
+  padding: 6rpx 16rpx;
+  font-size: 22rpx;
+  color: #4f46e5;
+  background: #eef2ff;
+  border-radius: 999rpx;
+}
+
+.status.is-error {
+  color: #b91c1c;
+}
+
+.status.is-ok {
+  color: #047857;
+}
+
+.progress-hint {
+  margin-top: 16rpx;
+  text-align: center;
+  color: #6b7280;
+  font-size: 24rpx;
 }
