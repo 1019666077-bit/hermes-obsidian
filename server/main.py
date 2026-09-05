@@ -22,10 +22,12 @@ from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 ROOT = Path(__file__).resolve().parent.parent
+WEB_DIR = ROOT / "web"
 ORGANIZE_SCRIPT = ROOT / "organize_vault.py"
 HERMES_SCRIPT = ROOT / "run_hermes_organize.sh"
 JOBS_DIR = Path(__file__).resolve().parent / "jobs"
@@ -84,6 +86,12 @@ app.add_middleware(
 
 class LoginBody(BaseModel):
     code: str = Field(..., min_length=1, description="wx.login code or any string in dev mode")
+
+
+@app.get("/")
+def root():
+    """Local browser try page (no WeChat DevTools required)."""
+    return RedirectResponse(url="/web/try.html")
 
 
 @app.get("/health")
@@ -725,6 +733,10 @@ def job_status(job_id: str):
         "file_count": job.get("file_count"),
         "download_url": f"/api/download/{job_id}",
     }
+
+
+if WEB_DIR.is_dir():
+    app.mount("/web", StaticFiles(directory=str(WEB_DIR), html=True), name="web")
 
 
 if __name__ == "__main__":
